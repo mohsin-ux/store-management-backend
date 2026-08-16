@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient, RoleName } from '../generated/prisma/client';
+import { PrismaClient, RoleName } from '../../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
 const adapter = new PrismaPg({
@@ -8,8 +8,8 @@ const adapter = new PrismaPg({
 
 const prisma = new PrismaClient({ adapter });
 
-async function main() {
-  console.log('🌱 Starting seeding...');
+async function seedRoles() {
+  console.log('🌱 Seeding roles...');
 
   const roles: { name: RoleName; description: string }[] = [
     {
@@ -35,10 +35,10 @@ async function main() {
     console.log(`✅ Created role: ${role.name}`);
   }
 
-  console.log('🌱 Seeding completed!');
+  console.log('✅ Roles seeded successfully!');
 }
 
-main()
+seedRoles()
   .catch((e) => {
     console.error('❌ Seeding failed:', e);
     process.exit(1);

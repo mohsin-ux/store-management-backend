@@ -18,31 +18,60 @@ enum RoleName {
 
 // ==================== MODELS ====================
 
-model Role {
+model role {
   id          String   @id @default(cuid())
   name        RoleName @unique
   description String?
-  users       User[]
+  users       user[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@map("roles")
 }
 
-model User {
+model user {
   id           String   @id @default(cuid())
   name         String   @db.VarChar(100)
   email        String   @unique @db.VarChar(255)
   password     String   @db.VarChar(255)
   roleId       String
-  role         Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  storeId      String?
+  role         role     @relation(fields: [roleId], references: [id])
+  storeId      String?  // ← Add this field
+  store        store?   @relation(fields: [storeId], references: [id])
+  refreshTokens refreshToken[]
   isOwner      Boolean  @default(false)
   isSuperAdmin Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@unique([storeId, isOwner])
-  @@index([email])
   @@map("users")
+}
+
+model store {
+  id        String   @id @default(cuid())
+  name      String   @db.VarChar(100)
+  phone     String?  @db.VarChar(20)
+  address   String?
+  users     user[]   // Relationship to users
+  // products  product[] // Relationship to products
+  // sales     sale[]   // Relationship to sales
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("stores")
+}
+
+model refreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  revokedAt DateTime? // If not null, token is revoked
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
 }

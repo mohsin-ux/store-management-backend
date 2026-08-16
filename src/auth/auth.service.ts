@@ -6,7 +6,7 @@ import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
-  constructor(
+  constructor(  
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) {}
