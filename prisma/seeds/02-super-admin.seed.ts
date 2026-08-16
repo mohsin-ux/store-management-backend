@@ -14,11 +14,11 @@ async function seedSuperAdmin() {
 
   // Get ADMIN role
   const adminRole = await prisma.role.findUnique({
-    where: { name: RoleName.ADMIN },
+    where: { name: RoleName.SUPER_ADMIN },
   });
 
   if (!adminRole) {
-    throw new Error('❌ ADMIN role not found. Run 01-roles.seed.ts first.');
+    throw new Error('❌ SUPER_ADMIN role not found. Run 01-roles.seed.ts first.');
   }
 
   // Hash password

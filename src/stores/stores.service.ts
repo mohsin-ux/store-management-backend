@@ -12,28 +12,29 @@ export class StoresService {
     const { name, phone, address, ownerName, ownerEmail, ownerPassword } =
       createStoreDto;
 
+    // Check if owner email already exists
     const user = await this.prisma.user.findUnique({
       where: {
         email: ownerEmail,
       },
     });
-
     if (user) {
       throw new BadRequestException('Owner email already exists');
     }
 
+    // Check if admin role exists in role table
     const adminRole = await this.prisma.role.findUnique({
       where: {
         name: RoleName.ADMIN,
       },
     });
-
     if (!adminRole) {
       throw new BadRequestException(
         'Admin role not found. Please add the role first.',
       );
     }
 
+    // Create store and owner user in a transaction
     const result = this.prisma.$transaction(async (tx) => {
       // Create store
       const store = await tx.store.create({
@@ -52,9 +53,27 @@ export class StoresService {
           password: hashPassword,
           roleId: adminRole.id,
           storeId: store.id,
+          isOwner: true,
+          isSuperAdmin: false,
         },
       });
-      return { store, owner };
+
+      return {
+        store: {
+          id: store.id,
+          name: store.name,
+          phone: store.phone,
+          address: store.address,
+        },
+        owner: {
+          id: owner.id,
+          name: owner.name,
+          email: owner.email,
+          storeId: owner.storeId,
+          isOwner: owner.isOwner,
+          isSuperAdmin: owner.isSuperAdmin,
+        },
+      };
     });
 
     return result;

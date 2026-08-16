@@ -11,6 +11,7 @@ datasource db {
 // ==================== ENUMS ====================
 
 enum RoleName {
+  SUPER_ADMIN
   ADMIN
   INVENTORY_MANAGER
   SALESMAN
@@ -38,7 +39,7 @@ model user {
   role         role     @relation(fields: [roleId], references: [id])
   storeId      String?  // ← Add this field
   store        store?   @relation(fields: [storeId], references: [id])
-  refreshTokens refreshToken[]
+  refreshTokens refresh_token[]
   isOwner      Boolean  @default(false)
   isSuperAdmin Boolean  @default(false)
   createdAt    DateTime @default(now())
@@ -62,7 +63,7 @@ model store {
   @@map("stores")
 }
 
-model refreshToken {
+model refresh_token {
   id        String   @id @default(cuid())
   token     String   @unique
   userId    String

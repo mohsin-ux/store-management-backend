@@ -13,6 +13,10 @@ async function seedRoles() {
 
   const roles: { name: RoleName; description: string }[] = [
     {
+      name: RoleName.SUPER_ADMIN,
+      description: 'Full access to everything in the system',
+    },
+    {
       name: RoleName.ADMIN,
       description: 'Full access to everything in the store',
     },

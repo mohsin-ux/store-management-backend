@@ -3,10 +3,11 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class AuthService {
-  constructor(  
+  constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
   ) {}
@@ -15,51 +16,71 @@ export class AuthService {
   async login(loginUserDto: LoginDto) {
     const { email, password } = loginUserDto;
 
-    // Check if user exists
-    const isUserExist = await this.prisma.user.findUnique({
+    // 1. Check if user exists
+    const user = await this.prisma.user.findUnique({
       where: { email },
       include: {
         role: true,
       },
     });
-    if (!isUserExist) {
+    if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
-    // Check if password is valid
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      isUserExist.password,
-    );
+    // 2. Check if password is valid
+    const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid password');
     }
 
-    // Generate JWT token
-
-    const payload = {
-      sub: isUserExist.id,
-      email: isUserExist.email,
-      name: isUserExist.name,
-      role: isUserExist.role?.name,
-      storeId: isUserExist.storeId,
-      isOwner: isUserExist.isOwner,
-      isSuperAdmin: isUserExist.isSuperAdmin,
-    };
-    const token = await this.jwtService.signAsync(payload);
-
-    const { sub, ...userData } = payload;
+    // 3. Generate tokens
+    const accessToken = await this.signAccessToken(user.id, user.email);
+    const refreshToken = await this.signRefreshToken(user.id, user.email);
 
     return {
-      access_token: token,
-      user: {
-        id: isUserExist.id,
-        ...userData,
-      },
+      access_token: accessToken,
+      refresh_token: refreshToken,
     };
   }
 
-  // ==================== VALIDATE USER FOR JWT ====================
+  // ==================== LOGOUT USER ====================
+  async logout(refreshToken: string) {
+    const storedToken = await this.verifyRefreshToken(refreshToken);
+
+    // Revoke old refresh token
+    await this.prisma.refresh_token.update({
+      where: { id: storedToken.id },
+      data: { revokedAt: new Date() },
+    });
+    return {
+      message: 'Logout successful',
+    };
+  }
+
+  // ==================== REFRESH TOKEN ====================
+  async refreshToken(refreshToken: string) {
+    const storedToken = await this.verifyRefreshToken(refreshToken);
+    const accessToken = await this.signAccessToken(
+      storedToken.user.id,
+      storedToken.user.email,
+    );
+    const newRefreshToken = await this.signRefreshToken(
+      storedToken.user.id,
+      storedToken.user.email,
+    );
+
+    // Revoke old token
+    await this.prisma.refresh_token.update({
+      where: { id: storedToken.id },
+      data: { revokedAt: new Date() },
+    });
+    return {
+      access_token: accessToken,
+      refresh_token: newRefreshToken,
+    };
+  }
+
+  // ==================== VALIDATE USER FOR JWT (FOR AUTH GUARD) ====================
   async validateUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -81,5 +102,53 @@ export class AuthService {
       isOwner: user.isOwner,
       isSuperAdmin: user.isSuperAdmin,
     };
+  }
+
+  // ==================== GENERATE ACCESS TOKEN ====================
+  private async signAccessToken(userId: string, email: string) {
+    const payload = { sub: userId, email };
+    return this.jwtService.signAsync(payload);
+  }
+
+  // ==================== GENERATE REFRESH TOKEN IN DATABASE ====================
+  private async signRefreshToken(userId: string, email: string) {
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+    const refreshToken = await this.prisma.refresh_token.create({
+      data: {
+        userId: userId,
+        token: randomBytes(32).toString('hex'),
+        expiresAt: expiresAt,
+      },
+    });
+    if (!refreshToken) {
+      throw new UnauthorizedException('Failed to generate refresh token');
+    }
+
+    return { token: refreshToken.token };
+  }
+
+  // ==================== VERIFY REFRESH TOKEN ====================
+  private async verifyRefreshToken(refreshToken: string) {
+    const isTokenExist = await this.prisma.refresh_token.findFirst({
+      where: {
+        token: refreshToken,
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      include: {
+        user: {
+          include: {
+            role: true,
+          },
+        },
+      },
+    });
+    if (!isTokenExist) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+    return isTokenExist;
   }
 }

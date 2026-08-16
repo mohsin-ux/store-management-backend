@@ -4,14 +4,14 @@ import {
   ExecutionContext,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuthService } from '../../auth/auth.service';
 import { JwtService } from '@nestjs/jwt';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
     private jwtService: JwtService,
-    private authService: AuthService,
+    private prisma: PrismaService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -24,17 +24,40 @@ export class AuthGuard implements CanActivate {
 
     try {
       // 1. Verify JWT token
-      const payload = this.jwtService.verify(token);
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: process.env.JWT_SECRET,
+      });
 
-      // 2. Validate user exists in database
-      const user = await this.authService.validateUser(payload.sub);
+      // 2. Check if user exists in database
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        include: { role: true },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
 
       // 3. Attach user to request
-      request.user = user;
+      request.user = {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role.name,
+        storeId: user.storeId,
+        isOwner: user.isOwner,
+        isSuperAdmin: user.isSuperAdmin,
+      };
 
       return true;
     } catch (error) {
-      throw new UnauthorizedException('Invalid or expired token');
+      if (error.name === 'TokenExpiredError') {
+        throw new UnauthorizedException('Token expired');
+      }
+      if (error.name === 'JsonWebTokenError') {
+        throw new UnauthorizedException('Invalid token');
+      }
+      throw new UnauthorizedException('Authentication failed');
     }
   }
 
