@@ -5,7 +5,6 @@ declare namespace Express {
     name: string;
     role: string;
     storeId: string | null;
-    isOwner: boolean;
     isSuperAdmin: boolean;
   }
   interface Request {

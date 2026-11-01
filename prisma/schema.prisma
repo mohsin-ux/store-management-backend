@@ -11,7 +11,6 @@ datasource db {
 // ==================== ENUMS ====================
 
 enum RoleName {
-  SUPER_ADMIN
   ADMIN
   INVENTORY_MANAGER
   SALESMAN
@@ -30,49 +29,101 @@ model role {
   @@map("roles")
 }
 
-model user {
-  id           String   @id @default(cuid())
-  name         String   @db.VarChar(100)
-  email        String   @unique @db.VarChar(255)
-  password     String   @db.VarChar(255)
-  roleId       String
-  role         role     @relation(fields: [roleId], references: [id])
-  storeId      String?  // ← Add this field
-  store        store?   @relation(fields: [storeId], references: [id])
-  refreshTokens refresh_token[]
-  isOwner      Boolean  @default(false)
-  isSuperAdmin Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([storeId, isOwner])
-  @@map("users")
-}
-
 model store {
-  id        String   @id @default(cuid())
-  name      String   @db.VarChar(100)
-  phone     String?  @db.VarChar(20)
+  id        String    @id @default(cuid())
+  name      String    @db.VarChar(100)
+  phone     String?   @db.VarChar(20)
   address   String?
-  users     user[]   // Relationship to users
-  // products  product[] // Relationship to products
-  // sales     sale[]   // Relationship to sales
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  users     user[] // Relationship to users
+  products  product[] // Relationship to products
+  sales     sale[] // Relationship to sales
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@map("stores")
 }
 
+model user {
+  id            String          @id @default(cuid())
+  name          String          @db.VarChar(100)
+  email         String          @unique @db.VarChar(255)
+  phone         String?         @db.VarChar(20)
+  password      String          @db.VarChar(255)
+  roleId        String?
+  role          role?            @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  storeId       String? // ← Add this field
+  store         store?          @relation(fields: [storeId], references: [id])
+  products      product[]
+  sales         sale[]
+  refreshTokens refresh_token[]
+  isSuperAdmin  Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@map("users")
+}
+
 model refresh_token {
-  id        String   @id @default(cuid())
-  token     String   @unique
+  id        String    @id @default(cuid())
+  token     String    @unique
   userId    String
-  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      user      @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   revokedAt DateTime? // If not null, token is revoked
 
   @@index([userId])
   @@index([token])
   @@map("refresh_tokens")
+}
+
+model product {
+  id            String     @id @default(cuid())
+  storeId       String
+  store         store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name          String     @db.VarChar(100)
+  sku           String?    @unique @db.VarChar(50)
+  salePrice     Decimal    @db.Decimal(10, 2)
+  stockQuantity Int        @default(0)
+  createdBy     String?
+  creator       user?      @relation(fields: [createdBy], references: [id])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  saleItems     saleItem[]
+
+  @@index([storeId])
+  @@map("products")
+}
+
+model sale {
+  id            String     @id @default(cuid())
+  storeId       String
+  store         store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId        String
+  user          user       @relation(fields: [userId], references: [id])
+  totalAmount   Decimal    @default(0) @db.Decimal(10, 2)
+  totalQuantity Int        @default(0)
+  items         saleItem[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([storeId])
+  @@index([userId])
+  @@map("sales")
+}
+
+model saleItem {
+  id        String   @id @default(cuid())
+  saleId    String
+  sale      sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity  Int
+  unitPrice Decimal  @db.Decimal(10, 2)
+  subtotal  Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
 }

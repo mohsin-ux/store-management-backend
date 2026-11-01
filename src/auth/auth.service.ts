@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -24,7 +28,7 @@ export class AuthService {
       },
     });
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException('User not found because the user is not exists', );
     }
 
     // 2. Check if password is valid
@@ -80,6 +84,25 @@ export class AuthService {
     };
   }
 
+  // ==================== DELETE THE USER BY USER ID ====================
+  async deleteUser(userId: string) {
+    const user = this.prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+    });
+    if (!user) {
+      throw new UnauthorizedException('user not found');
+    }
+
+    this.prisma.user.delete({
+      where: {
+        id: userId,
+      },
+    });
+    return 'User is deleted now successfully';
+  }
+
   // ==================== VALIDATE USER FOR JWT (FOR AUTH GUARD) ====================
   async validateUser(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -97,9 +120,8 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role.name,
+      role: user.role?.name,
       storeId: user.storeId,
-      isOwner: user.isOwner,
       isSuperAdmin: user.isSuperAdmin,
     };
   }

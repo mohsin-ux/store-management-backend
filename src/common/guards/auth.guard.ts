@@ -3,6 +3,7 @@ import {
   CanActivate,
   ExecutionContext,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -23,31 +24,30 @@ export class AuthGuard implements CanActivate {
     }
 
     try {
-      // 1. Verify JWT token
+      // ======== 1. Verify JWT token
       const payload = await this.jwtService.verifyAsync(token, {
         secret: process.env.JWT_SECRET,
       });
 
-      // 2. Check if user exists in database
+      // ======== 2. Check if user exists in database
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
         include: { role: true },
       });
 
       if (!user) {
-        throw new UnauthorizedException('User not found');
+        throw new UnauthorizedException(`User not found  ${user}`);
       }
 
-      // 3. Attach user to request
+      // ======== 3. Attach user to request
       request.user = {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role.name,
+        role: user.role?.name,
         storeId: user.storeId,
-        isOwner: user.isOwner,
         isSuperAdmin: user.isSuperAdmin,
-      };
+      };      
 
       return true;
     } catch (error) {

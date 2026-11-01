@@ -1,60 +1,64 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { RoleName } from '../../generated/prisma/client';
 import * as bcrypt from 'bcrypt';
+import { UpdateStoreDto } from './dto/update-store.dto';
 
 @Injectable()
 export class StoresService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createStore(createStoreDto: CreateStoreDto) {
-    const { name, phone, address, ownerName, ownerEmail, ownerPassword } =
-      createStoreDto;
+  async createStore(dto: CreateStoreDto) {
+    const { name, phone, address, ownerName, ownerEmail, ownerPassword } = dto;
 
-    // Check if owner email already exists
-    const user = await this.prisma.user.findUnique({
-      where: {
-        email: ownerEmail,
-      },
+    // 1. Check duplicate email
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: ownerEmail },
     });
-    if (user) {
-      throw new BadRequestException('Owner email already exists');
+    if (existingUser) {
+      throw new ConflictException('Owner email already exists');
     }
 
-    // Check if admin role exists in role table
+    // 2. Get ADMIN role
     const adminRole = await this.prisma.role.findUnique({
-      where: {
-        name: RoleName.ADMIN,
-      },
+      where: { name: RoleName.ADMIN },
     });
     if (!adminRole) {
-      throw new BadRequestException(
-        'Admin role not found. Please add the role first.',
+      throw new InternalServerErrorException(
+        'ADMIN role not seeded. Run seed script.',
       );
     }
 
-    // Create store and owner user in a transaction
-    const result = this.prisma.$transaction(async (tx) => {
-      // Create store
+    // 3. Create store + owner atomically
+    return this.prisma.$transaction(async (tx) => {
       const store = await tx.store.create({
-        data: {
-          name,
-          phone,
-          address,
-        },
+        data: { name, phone, address },
       });
-      // Create owner user
-      const hashPassword = await bcrypt.hash(ownerPassword, 10);
+
+      const hashedPassword = await bcrypt.hash(ownerPassword, 10);
       const owner = await tx.user.create({
         data: {
           name: ownerName,
           email: ownerEmail,
-          password: hashPassword,
+          password: hashedPassword,
           roleId: adminRole.id,
           storeId: store.id,
-          isOwner: true,
           isSuperAdmin: false,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          storeId: true,
+          isSuperAdmin: true,
+          role: { select: { name: true } },
+          createdAt: true,
         },
       });
 
@@ -65,17 +69,72 @@ export class StoresService {
           phone: store.phone,
           address: store.address,
         },
-        owner: {
-          id: owner.id,
-          name: owner.name,
-          email: owner.email,
-          storeId: owner.storeId,
-          isOwner: owner.isOwner,
-          isSuperAdmin: owner.isSuperAdmin,
-        },
+        owner,
       };
     });
+  }
 
-    return result;
+  // ==================== FIND ALL ====================
+  async findAll() {
+    return this.prisma.store.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        _count: {
+          select: { users: true, products: true, sales: true },
+        },
+      },
+    });
+  }
+
+  // ==================== FIND ONE ====================
+  async findOne(id: string) {
+    const store = await this.prisma.store.findUnique({
+      where: { id },
+      include: {
+        users: {
+          where: { role: { name: RoleName.ADMIN } },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            createdAt: true,
+          },
+        },
+        _count: {
+          select: { users: true, products: true, sales: true },
+        },
+      },
+    });
+
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    return store;
+  }
+
+  // ==================== UPDATE ====================
+  async update(id: string, dto: UpdateStoreDto) {
+    const store = await this.prisma.store.findUnique({ where: { id } });
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    return this.prisma.store.update({
+      where: { id },
+      data: dto,
+    });
+  }
+
+  // ==================== REMOVE ====================
+  async remove(id: string) {
+    const store = await this.prisma.store.findUnique({ where: { id } });
+    if (!store) {
+      throw new NotFoundException('Store not found');
+    }
+
+    await this.prisma.store.delete({ where: { id } });
+
+    return { message: 'Store deleted successfully' };
   }
 }
