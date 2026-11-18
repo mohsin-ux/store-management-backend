@@ -44,6 +44,7 @@ export class AuthService {
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
+      user
     };
   }
 
@@ -147,7 +148,7 @@ export class AuthService {
       throw new UnauthorizedException('Failed to generate refresh token');
     }
 
-    return { token: refreshToken.token };
+    return refreshToken.token ;
   }
 
   // ==================== VERIFY REFRESH TOKEN ====================
