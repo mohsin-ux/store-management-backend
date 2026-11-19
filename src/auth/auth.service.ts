@@ -44,8 +44,25 @@ export class AuthService {
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
-      user
     };
+  }
+
+  // ==================== GET LOGGED IN USER INFO ====================
+  async getUserInfo(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        role: true,
+        store: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const { password, ...userInfo } = user;
+    return userInfo;
   }
 
   // ==================== LOGOUT USER ====================
