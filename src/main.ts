@@ -1,8 +1,9 @@
 import 'dotenv/config';
-import { NestFactory, Reflector } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,7 +12,18 @@ async function bootstrap() {
      origin: 'http://localhost:5173',
      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
      credentials: true, // Set to true if you are sending cookies or auth headers
-   });    
+   });
+
+  // Reject invalid request bodies with a 400 instead of letting them reach Prisma
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+    }),
+  );
+
+  // Turn Prisma errors (missing unique field, FK violation, ...) into proper 4xx responses
+  app.useGlobalFilters(new PrismaExceptionFilter());
 
   // Swagger configuration
   const config = new DocumentBuilder()

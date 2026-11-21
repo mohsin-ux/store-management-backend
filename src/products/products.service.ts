@@ -12,16 +12,22 @@ export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createProductDto: CreateProductDto, storeId: string) {
-    const product = await this.prisma.product.findUnique({
-      where: { sku: createProductDto.sku, storeId },
-    });
+    const { sku, ...data } = createProductDto;
 
-    if (product) {
-      throw new BadRequestException('Product already exists');
+    // sku is optional, so only check for duplicates when one was provided
+    if (sku) {
+      const product = await this.prisma.product.findFirst({
+        where: { sku, storeId },
+      });
+
+      if (product) {
+        throw new BadRequestException('Product already exists');
+      }
     }
 
     return this.prisma.product.create({
-      data: createProductDto,
+      // storeId comes from the caller (JWT / route), never from the body
+      data: { ...data, sku, storeId },
     });
   }
 

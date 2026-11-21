@@ -33,12 +33,4 @@ export class CreateProductDto {
   @IsInt()
   @Min(0)
   stockQuantity: number;
-
-  @ApiProperty({
-    description: 'The store ID of the product',
-    example: '1234567890',
-  })
-  @IsString()
-  @IsNotEmpty()
-  storeId: string;
 }

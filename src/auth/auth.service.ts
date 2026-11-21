@@ -104,7 +104,7 @@ export class AuthService {
 
   // ==================== DELETE THE USER BY USER ID ====================
   async deleteUser(userId: string) {
-    const user = this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: {
         id: userId,
       },
@@ -113,7 +113,7 @@ export class AuthService {
       throw new UnauthorizedException('user not found');
     }
 
-    this.prisma.user.delete({
+    await this.prisma.user.delete({
       where: {
         id: userId,
       },
