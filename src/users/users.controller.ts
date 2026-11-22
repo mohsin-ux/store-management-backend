@@ -10,7 +10,7 @@ import {
   Req,
   ForbiddenException,
 } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { UsersService } from './users.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
 import { UpdateUserDto } from './dto/update-user.dto';

@@ -7,13 +7,16 @@ import {
   Param,
   Delete,
   Req,
+  UseGuards,
 } from '@nestjs/common';
 import { SalesService } from './sales.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
 import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Roles } from 'src/common/decorators/roles.decorator';
-import { Request } from 'express';
+import type { Request } from 'express';
+import { AuthGuard } from 'src/common/guards/auth.guard';
+import { RolesGuard } from 'src/common/guards/roles.guard';
 
 @Controller('sales')
 export class SalesController {
@@ -22,6 +25,7 @@ export class SalesController {
   // ==================== CREATE SALE ====================
   @Post()
   @Roles('ADMIN', 'SALESMAN')
+  @UseGuards(AuthGuard, RolesGuard)
   @ApiOperation({
     summary: 'Create a new sale',
     description:
