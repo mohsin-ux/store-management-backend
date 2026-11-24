@@ -7,8 +7,10 @@ import {
   Delete,
   UseGuards,
   Req,
+  Res,
+  UnauthorizedException,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import {
@@ -29,11 +31,34 @@ export class AuthController {
 
   //========== api for login ============
   @Post('login')
-  login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { access_token, refresh_token, user } =
+      await this.authService.login(dto);
+
+    // Access token cookie — 15 min
+    res.cookie('accessToken', access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    // Refresh token cookie — 7 days, only sent to /auth/refresh
+    res.cookie('refreshToken', refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { user }; // ❌ no tokens in body
   }
 
-  //========== api for getting logged in user info ============
+  //========== api for getting logged-in user info ============
   @Get('me')
   @UseGuards(AuthGuard)
   @ApiBearerAuth()
@@ -73,15 +98,55 @@ export class AuthController {
       },
     },
   })
-  refreshToken(@Body() body: { refreshToken: string }) {
-    if (!body?.refreshToken) {
-      throw new BadRequestException('refreshToken is required');
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = req.cookies?.['refreshToken'];
+    if (!refreshToken) {
+      throw new UnauthorizedException('No refresh token');
     }
-    return this.authService.refreshToken(body.refreshToken);
+
+    const { access_token, refresh_token: newRefreshToken } =
+      await this.authService.refreshToken(refreshToken);
+
+    // New access token cookie
+    res.cookie('accessToken', access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    // New (rotated) refresh token cookie
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    return { message: 'Refreshed' };
   }
 
-//========== api for deleting user ============
-  @Delete('delete') 
+  // ==================== LOGOUT ====================
+  @Post('logout')
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = req.cookies?.['refreshToken'];
+
+    // Revoke in DB (best-effort — never throws)
+    await this.authService.logout(refreshToken);
+
+    // Clear both cookies (must match original paths)
+    res.clearCookie('accessToken', { path: '/' });
+    res.clearCookie('refreshToken', { path: '/auth/refresh' });
+
+    return { message: 'Logged out successfully' };
+  }
+
+  //========== api for deleting user ============
+  @Delete('delete')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleName.ADMIN)
   @ApiBearerAuth()

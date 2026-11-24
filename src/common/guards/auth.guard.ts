@@ -17,7 +17,7 @@ export class AuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const token = this.extractTokenFromHeader(request);
+    const token = this.extractToken(request);
 
     if (!token) {
       throw new UnauthorizedException('No token provided');
@@ -36,7 +36,7 @@ export class AuthGuard implements CanActivate {
       });
 
       if (!user) {
-        throw new UnauthorizedException(`User not found  ${user}`);
+        throw new UnauthorizedException(`User not found`);
       }
 
       // ======== 3. Attach user to request
@@ -47,10 +47,10 @@ export class AuthGuard implements CanActivate {
         role: user.role?.name,
         storeId: user.storeId,
         isSuperAdmin: user.isSuperAdmin,
-      };      
+      };
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       if (error.name === 'TokenExpiredError') {
         throw new UnauthorizedException('Token expired');
       }
@@ -61,7 +61,12 @@ export class AuthGuard implements CanActivate {
     }
   }
 
-  private extractTokenFromHeader(request: any): string | undefined {
+  private extractToken(request: any): string | undefined {
+    // ✅ Prefer cookie (httpOnly)
+    const cookieToken = request.cookies?.['accessToken'];
+    if (cookieToken) return cookieToken;
+
+    // ⚠️ Optional fallback for other clients (mobile) or Swagger
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;
   }

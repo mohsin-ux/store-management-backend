@@ -4,15 +4,18 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  // ✅ read cookies
+  app.use(cookieParser());
 
-   app.enableCors({
-     origin: 'http://localhost:5173',
-     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
-     credentials: true, // Set to true if you are sending cookies or auth headers
-   });
+  app.enableCors({
+    origin: ['http://localhost:5173', 'http://localhost:3000'], // POS + admin
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+    credentials: true, // Set to true if you are sending cookies or auth headers
+  });
 
   // Reject invalid request bodies with a 400 instead of letting them reach Prisma
   app.useGlobalPipes(

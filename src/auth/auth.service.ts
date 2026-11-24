@@ -28,7 +28,9 @@ export class AuthService {
       },
     });
     if (!user) {
-      throw new UnauthorizedException('User not found because the user is not exists', );
+      throw new UnauthorizedException(
+        'User not found because the user is not exists',
+      );
     }
 
     // 2. Check if password is valid
@@ -40,10 +42,12 @@ export class AuthService {
     // 3. Generate tokens
     const accessToken = await this.signAccessToken(user.id, user.email);
     const refreshToken = await this.signRefreshToken(user.id, user.email);
+    // const  {password, ...responseUser}= user
 
     return {
       access_token: accessToken,
       refresh_token: refreshToken,
+      user
     };
   }
 
@@ -67,16 +71,13 @@ export class AuthService {
 
   // ==================== LOGOUT USER ====================
   async logout(refreshToken: string) {
-    const storedToken = await this.verifyRefreshToken(refreshToken);
-
-    // Revoke old refresh token
-    await this.prisma.refresh_token.update({
-      where: { id: storedToken.id },
-      data: { revokedAt: new Date() },
-    });
-    return {
-      message: 'Logout successful',
-    };
+    if (refreshToken) {
+      await this.prisma.refresh_token.updateMany({
+        where: { token: refreshToken, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return { message: 'Logout successful' };
   }
 
   // ==================== REFRESH TOKEN ====================
@@ -165,7 +166,7 @@ export class AuthService {
       throw new UnauthorizedException('Failed to generate refresh token');
     }
 
-    return refreshToken.token ;
+    return refreshToken.token;
   }
 
   // ==================== VERIFY REFRESH TOKEN ====================
